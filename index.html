@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HashCheck — Verify text against a hash</title>
+<meta name="description" content="Compute and verify MD5, SHA-1, SHA-256, SHA-384 and SHA-512 hashes in your browser. Nothing leaves your device.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23111827'/%3E%3Cpath d='M9 16.5l4.5 4.5L23 11.5' fill='none' stroke='%2322c55e' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --surface: #ffffff;
+    --surface-2: #f1f3f6;
+    --border: #e3e6eb;
+    --border-strong: #cfd4dc;
+    --text: #0f172a;
+    --text-2: #475569;
+    --text-3: #8a94a6;
+    --accent: #2563eb;
+    --accent-soft: rgba(37, 99, 235, .12);
+    --ok: #16a34a;
+    --ok-soft: rgba(22, 163, 74, .10);
+    --ok-ring: rgba(22, 163, 74, .22);
+    --bad: #dc2626;
+    --bad-soft: rgba(220, 38, 38, .08);
+    --shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 8px 24px rgba(15, 23, 42, .06);
+    --radius: 14px;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    --sans: ui-sans-serif, -apple-system, "Segoe UI", Inter, Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0b0d12;
+      --surface: #12151c;
+      --surface-2: #181c25;
+      --border: #232835;
+      --border-strong: #303747;
+      --text: #e8ebf1;
+      --text-2: #a3acbd;
+      --text-3: #6b7489;
+      --accent: #5b8cff;
+      --accent-soft: rgba(91, 140, 255, .16);
+      --ok: #22c55e;
+      --ok-soft: rgba(34, 197, 94, .10);
+      --ok-ring: rgba(34, 197, 94, .25);
+      --bad: #f05252;
+      --bad-soft: rgba(240, 82, 82, .10);
+      --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 12px 32px rgba(0, 0, 0, .35);
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* Header */
+  header {
+    border-bottom: 1px solid var(--border);
+    background: color-mix(in srgb, var(--surface) 80%, transparent);
+    backdrop-filter: saturate(1.4) blur(8px);
+    position: sticky; top: 0; z-index: 5;
+  }
+  .bar {
+    max-width: 1040px; margin: 0 auto; padding: 14px 24px;
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 650; letter-spacing: -.01em; font-size: 16px; }
+  .brand svg { flex: none; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12.5px; color: var(--text-2);
+    padding: 5px 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface);
+  }
+  .badge svg { color: var(--ok); }
+
+  main { flex: 1; width: 100%; max-width: 1040px; margin: 0 auto; padding: 40px 24px 56px; }
+  .intro h1 { font-size: clamp(26px, 3.4vw, 34px); letter-spacing: -.025em; line-height: 1.15; margin: 0 0 8px; font-weight: 700; }
+  .intro p { margin: 0 0 28px; color: var(--text-2); max-width: 620px; }
+
+  .grid { display: grid; grid-template-columns: 1.1fr .9fr; gap: 20px; align-items: start; }
+  @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); box-shadow: var(--shadow);
+  }
+  .card-body { padding: 22px; }
+  .card + .card { margin-top: 20px; }
+
+  .field + .field { margin-top: 20px; }
+  .label-row { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 8px; gap: 12px; }
+  label, .label { font-size: 13px; font-weight: 600; color: var(--text); }
+  .hint { font-size: 12px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+
+  textarea, input[type="text"] {
+    width: 100%; font: inherit; color: var(--text);
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 11px 13px; outline: none;
+    transition: border-color .15s, box-shadow .15s, background .15s;
+  }
+  textarea { min-height: 120px; resize: vertical; font-size: 14.5px; }
+  input.mono, .mono { font-family: var(--mono); font-size: 13.5px; letter-spacing: .01em; }
+  textarea:focus, input[type="text"]:focus {
+    border-color: var(--accent); background: var(--surface);
+    box-shadow: 0 0 0 4px var(--accent-soft);
+  }
+  input.is-ok { border-color: var(--ok); }
+  input.is-bad { border-color: var(--bad); }
+
+  /* Segmented control */
+  .seg {
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px;
+    padding: 4px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px;
+  }
+  .seg button {
+    font: inherit; font-size: 13px; font-weight: 550; color: var(--text-2);
+    border: 0; background: transparent; padding: 7px 4px; border-radius: 7px; cursor: pointer;
+    transition: background .15s, color .15s, box-shadow .15s;
+  }
+  .seg button:hover { color: var(--text); }
+  .seg button[aria-checked="true"] {
+    background: var(--surface); color: var(--text);
+    box-shadow: 0 1px 2px rgba(0,0,0,.08), 0 0 0 1px var(--border);
+  }
+  .seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .algo-note { margin-top: 8px; font-size: 12px; color: var(--text-3); min-height: 18px; }
+
+  .opts { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--border); }
+  .check { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-2); cursor: pointer; font-weight: 500; }
+  .check input { accent-color: var(--accent); width: 15px; height: 15px; margin: 0; }
+
+  /* Result */
+  .result { text-align: center; padding: 34px 22px 26px; }
+  .status-icon {
+    width: 132px; height: 132px; margin: 0 auto 18px; border-radius: 50%;
+    display: grid; place-items: center;
+    background: var(--surface-2); color: var(--text-3);
+    transition: background .3s, color .3s, box-shadow .3s, transform .3s;
+  }
+  .status-icon svg { width: 64px; height: 64px; }
+  .result[data-state="match"] .status-icon {
+    background: var(--ok); color: #fff;
+    box-shadow: 0 0 0 10px var(--ok-ring), 0 18px 40px -10px var(--ok);
+    animation: pop .45s cubic-bezier(.2, 1.4, .4, 1);
+  }
+  .result[data-state="mismatch"] .status-icon { background: var(--bad-soft); color: var(--bad); }
+  .result[data-state="match"] .tick path { stroke-dasharray: 48; stroke-dashoffset: 48; animation: draw .45s .12s ease-out forwards; }
+  @keyframes pop { 0% { transform: scale(.6); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+  @keyframes draw { to { stroke-dashoffset: 0; } }
+  @media (prefers-reduced-motion: reduce) {
+    .result[data-state="match"] .status-icon, .result[data-state="match"] .tick path { animation: none; stroke-dashoffset: 0; }
+  }
+  .status-title { font-size: 22px; font-weight: 700; letter-spacing: -.015em; margin: 0 0 4px; }
+  .result[data-state="match"] .status-title { color: var(--ok); }
+  .result[data-state="mismatch"] .status-title { color: var(--bad); }
+  .status-sub { margin: 0; color: var(--text-2); font-size: 14px; }
+
+  .computed { border-top: 1px solid var(--border); padding: 18px 22px 22px; }
+  .hash-box {
+    display: flex; align-items: flex-start; gap: 10px;
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 10px 10px 13px;
+  }
+  .hash-box code {
+    flex: 1; font-family: var(--mono); font-size: 13px; line-height: 1.6;
+    word-break: break-all; color: var(--text); min-height: 21px;
+  }
+  .hash-box code .diff { color: var(--bad); background: var(--bad-soft); border-radius: 2px; }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+    font: inherit; font-size: 13px; font-weight: 600;
+    padding: 8px 12px; border-radius: 9px; cursor: pointer;
+    border: 1px solid var(--border-strong); background: var(--surface); color: var(--text);
+    transition: background .15s, border-color .15s, transform .05s;
+    white-space: nowrap;
+  }
+  .btn:hover { background: var(--surface-2); }
+  .btn:active { transform: translateY(1px); }
+  .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .btn.icon { padding: 6px; border-radius: 7px; }
+  .btn.primary { background: var(--text); color: var(--surface); border-color: var(--text); }
+  .btn.primary:hover { opacity: .9; background: var(--text); }
+  .actions { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+  .actions .btn { flex: 1; }
+
+  /* Docs */
+  .docs h2 { font-size: 15px; margin: 0 0 4px; font-weight: 650; }
+  .docs p { margin: 0 0 14px; color: var(--text-2); font-size: 13.5px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--text-3); font-weight: 600; font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em; }
+  tr:last-child td { border-bottom: 0; }
+  td code, .docs code {
+    font-family: var(--mono); font-size: 12.5px;
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 5px; padding: 1px 5px;
+  }
+  .example {
+    margin-top: 14px; font-family: var(--mono); font-size: 12px; word-break: break-all;
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; color: var(--text-2);
+  }
+
+  footer { border-top: 1px solid var(--border); color: var(--text-3); font-size: 12.5px; }
+  footer .bar { padding: 18px 24px; }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 20px);
+    background: var(--text); color: var(--surface); font-size: 13px; font-weight: 550;
+    padding: 9px 14px; border-radius: 9px; opacity: 0; pointer-events: none;
+    transition: opacity .2s, transform .2s; box-shadow: var(--shadow);
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+  @media (max-width: 520px) {
+    .badge .long { display: none; }
+    .seg button { font-size: 12px; white-space: nowrap; padding: 7px 2px; }
+    footer .bar { flex-direction: column; align-items: flex-start; gap: 4px; }
+    main { padding-top: 28px; }
+  }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="bar">
+    <div class="brand">
+      <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="currentColor"/><path d="M9 16.5l4.5 4.5L23 11.5" fill="none" stroke="#22c55e" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      HashCheck
+    </div>
+    <span class="badge">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+      Runs locally<span class="long">&nbsp;in your browser</span>
+    </span>
+  </div>
+</header>
+
+<main>
+  <section class="intro">
+    <h1>Verify text against a hash</h1>
+    <p>Enter the original text and the hash you expect. HashCheck computes the digest on your device and tells you instantly whether they match.</p>
+  </section>
+
+  <div class="grid">
+    <!-- Inputs -->
+    <section class="card">
+      <div class="card-body">
+        <div class="field">
+          <div class="label-row">
+            <label for="text">Text to hash</label>
+            <span class="hint" id="textMeta">0 bytes</span>
+          </div>
+          <textarea id="text" spellcheck="false" placeholder="Type or paste text…"></textarea>
+        </div>
+
+        <div class="field">
+          <div class="label-row"><span class="label" id="algoLabel">Algorithm</span></div>
+          <div class="seg" role="radiogroup" aria-labelledby="algoLabel" id="algos"></div>
+          <div class="algo-note" id="algoNote"></div>
+        </div>
+
+        <div class="field">
+          <div class="label-row">
+            <label for="hash">Expected hash</label>
+            <span class="hint" id="hashMeta"></span>
+          </div>
+          <input type="text" id="hash" class="mono" spellcheck="false" autocomplete="off" placeholder="e.g. 2cf24dba5fb0a30e26e83b2ac5b9e29e…">
+        </div>
+
+        <div class="opts">
+          <label class="check"><input type="checkbox" id="trim"> Trim surrounding whitespace</label>
+          <label class="check"><input type="checkbox" id="syncUrl" checked> Keep URL in sync</label>
+        </div>
+      </div>
+    </section>
+
+    <!-- Result -->
+    <div>
+      <section class="card" aria-live="polite">
+        <div class="result" id="result" data-state="idle">
+          <div class="status-icon" id="statusIcon"></div>
+          <p class="status-title" id="statusTitle">Awaiting input</p>
+          <p class="status-sub" id="statusSub">Add an expected hash to compare.</p>
+        </div>
+        <div class="computed">
+          <div class="label-row">
+            <span class="label">Computed <span id="computedAlgo">SHA-256</span></span>
+            <span class="hint" id="computedLen"></span>
+          </div>
+          <div class="hash-box">
+            <code id="computed">—</code>
+            <button class="btn icon" id="copyHash" title="Copy hash" aria-label="Copy computed hash">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+            </button>
+          </div>
+          <div class="actions">
+            <button class="btn primary" id="copyLink">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+              Copy share link
+            </button>
+            <button class="btn" id="useComputed">Use as expected</button>
+            <button class="btn" id="reset">Reset</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="card docs">
+        <div class="card-body">
+          <h2>URL parameters</h2>
+          <p>Pre-fill the form by linking to this page with query parameters.</p>
+          <table>
+            <thead><tr><th>Param</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>text</code></td><td>Text to hash (URL-encoded, hashed as UTF-8)</td></tr>
+              <tr><td><code>hash</code></td><td>Expected hash, hex (case-insensitive)</td></tr>
+              <tr><td><code>algo</code></td><td><code>md5</code>, <code>sha1</code>, <code>sha256</code>, <code>sha384</code>, <code>sha512</code>. Optional — detected from hash length if omitted.</td></tr>
+            </tbody>
+          </table>
+          <div class="example" id="example"></div>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="bar">
+    <span>Hashes are computed with the Web Crypto API (MD5 in pure JavaScript). No data is sent anywhere.</span>
+    <span>Note: values in the URL are visible in browser history.</span>
+  </div>
+</footer>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ---------- Algorithms ----------
+  const ALGOS = [
+    { id: "md5",    name: "MD5",     hexLen: 32,  subtle: null,      weak: true },
+    { id: "sha1",   name: "SHA-1",   hexLen: 40,  subtle: "SHA-1",   weak: true },
+    { id: "sha256", name: "SHA-256", hexLen: 64,  subtle: "SHA-256" },
+    { id: "sha384", name: "SHA-384", hexLen: 96,  subtle: "SHA-384" },
+    { id: "sha512", name: "SHA-512", hexLen: 128, subtle: "SHA-512" },
+  ];
+  const byId = Object.fromEntries(ALGOS.map(a => [a.id, a]));
+  const normalizeAlgo = v => (v || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+
+  // Pure-JS MD5 (Web Crypto does not provide it). Input: Uint8Array.
+  function md5(bytes) {
+    const K = new Uint32Array(64);
+    for (let i = 0; i < 64; i++) K[i] = Math.floor(Math.abs(Math.sin(i + 1)) * 4294967296);
+    const S = [7,12,17,22, 5,9,14,20, 4,11,16,23, 6,10,15,21];
+    const len = bytes.length;
+    const nBlocks = ((len + 8) >>> 6) + 1;
+    const W = new Uint32Array(nBlocks * 16);
+    for (let i = 0; i < len; i++) W[i >> 2] |= bytes[i] << ((i % 4) * 8);
+    W[len >> 2] |= 0x80 << ((len % 4) * 8);
+    W[nBlocks * 16 - 2] = (len * 8) >>> 0;
+    W[nBlocks * 16 - 1] = Math.floor(len / 0x20000000);
+    let a0 = 0x67452301, b0 = 0xefcdab89, c0 = 0x98badcfe, d0 = 0x10325476;
+    for (let blk = 0; blk < nBlocks; blk++) {
+      let A = a0, B = b0, C = c0, D = d0;
+      for (let i = 0; i < 64; i++) {
+        let F, g;
+        const r = i >> 4;
+        if (r === 0)      { F = (B & C) | (~B & D); g = i; }
+        else if (r === 1) { F = (D & B) | (~D & C); g = (5 * i + 1) % 16; }
+        else if (r === 2) { F = B ^ C ^ D;          g = (3 * i + 5) % 16; }
+        else              { F = C ^ (B | ~D);       g = (7 * i) % 16; }
+        F = (F + A + K[i] + W[blk * 16 + g]) >>> 0;
+        const s = S[(r << 2) | (i & 3)];
+        A = D; D = C; C = B;
+        B = (B + ((F << s) | (F >>> (32 - s)))) >>> 0;
+      }
+      a0 = (a0 + A) >>> 0; b0 = (b0 + B) >>> 0; c0 = (c0 + C) >>> 0; d0 = (d0 + D) >>> 0;
+    }
+    const out = new Uint8Array(16);
+    [a0, b0, c0, d0].forEach((v, j) => { for (let k = 0; k < 4; k++) out[j * 4 + k] = (v >>> (8 * k)) & 255; });
+    return out;
+  }
+
+  const toHex = buf => Array.from(new Uint8Array(buf), b => b.toString(16).padStart(2, "0")).join("");
+
+  async function digest(algo, text) {
+    const bytes = new TextEncoder().encode(text);
+    if (algo.id === "md5") return toHex(md5(bytes));
+    if (!(window.crypto && crypto.subtle)) throw new Error("Web Crypto unavailable (page must be served over HTTPS).");
+    return toHex(await crypto.subtle.digest(algo.subtle, bytes));
+  }
+
+  // ---------- DOM ----------
+  const $ = id => document.getElementById(id);
+  const el = {
+    text: $("text"), hash: $("hash"), algos: $("algos"), algoNote: $("algoNote"),
+    trim: $("trim"), syncUrl: $("syncUrl"),
+    textMeta: $("textMeta"), hashMeta: $("hashMeta"),
+    result: $("result"), icon: $("statusIcon"), title: $("statusTitle"), sub: $("statusSub"),
+    computed: $("computed"), computedAlgo: $("computedAlgo"), computedLen: $("computedLen"),
+    copyHash: $("copyHash"), copyLink: $("copyLink"), useComputed: $("useComputed"), reset: $("reset"),
+    example: $("example"), toast: $("toast"),
+  };
+
+  const ICONS = {
+    idle: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h16M4 15h16M10 3 8 21M16 3l-2 18"/></svg>',
+    match: '<svg class="tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+    mismatch: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7l10 10M17 7 7 17"/></svg>',
+    error: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/></svg>',
+  };
+
+  let current = byId.sha256;
+  let algoExplicit = false;   // true once chosen via URL or click
+  let lastComputed = "";
+  let runId = 0;
+
+  // Build segmented control
+  ALGOS.forEach(a => {
+    const b = document.createElement("button");
+    b.type = "button"; b.role = "radio"; b.dataset.id = a.id; b.textContent = a.name;
+    b.addEventListener("click", () => { algoExplicit = true; setAlgo(a); update(); });
+    el.algos.appendChild(b);
+  });
+  el.algos.addEventListener("keydown", e => {
+    if (!["ArrowLeft", "ArrowRight"].includes(e.key)) return;
+    const i = ALGOS.indexOf(current) + (e.key === "ArrowRight" ? 1 : -1);
+    const next = ALGOS[(i + ALGOS.length) % ALGOS.length];
+    algoExplicit = true; setAlgo(next); update();
+    el.algos.querySelector(`[data-id="${next.id}"]`).focus();
+  });
+
+  function setAlgo(a, autoDetected = false) {
+    current = a;
+    el.algos.querySelectorAll("button").forEach(b => {
+      const on = b.dataset.id === a.id;
+      b.setAttribute("aria-checked", on); b.tabIndex = on ? 0 : -1;
+    });
+    const notes = [];
+    if (autoDetected) notes.push("Detected from hash length.");
+    if (a.weak) notes.push(`${a.name} is not collision-resistant — fine for checksums, not for security.`);
+    el.algoNote.textContent = notes.join(" ");
+    el.computedAlgo.textContent = a.name;
+  }
+
+  const cleanHash = v => v.trim().replace(/^0x/i, "").replace(/[\s:]/g, "").toLowerCase();
+  const effectiveText = () => el.trim.checked ? el.text.value.trim() : el.text.value;
+
+  function maybeAutoDetect() {
+    if (algoExplicit) return;
+    const h = cleanHash(el.hash.value);
+    const match = ALGOS.find(a => a.hexLen === h.length);
+    if (match && /^[0-9a-f]+$/.test(h)) setAlgo(match, true);
+    else if (current !== byId.sha256 || el.algoNote.textContent.startsWith("Detected")) setAlgo(byId.sha256);
+  }
+
+  function setState(state, title, sub) {
+    el.result.dataset.state = state;
+    el.icon.innerHTML = ICONS[state];
+    el.title.textContent = title;
+    el.sub.textContent = sub;
+  }
+
+  function renderComputed(hex, expected) {
+    el.computed.textContent = "";
+    if (!expected || expected === hex) { el.computed.textContent = hex; return; }
+    // Highlight differing characters
+    const frag = document.createDocumentFragment();
+    let buf = "", inDiff = false;
+    const flush = () => {
+      if (!buf) return;
+      if (inDiff) { const s = document.createElement("span"); s.className = "diff"; s.textContent = buf; frag.appendChild(s); }
+      else frag.appendChild(document.createTextNode(buf));
+      buf = "";
+    };
+    for (let i = 0; i < hex.length; i++) {
+      const d = hex[i] !== expected[i];
+      if (d !== inDiff) { flush(); inDiff = d; }
+      buf += hex[i];
+    }
+    flush();
+    el.computed.appendChild(frag);
+  }
+
+  async function update() {
+    const id = ++runId;
+    maybeAutoDetect();
+    const text = effectiveText();
+    const bytes = new TextEncoder().encode(text).length;
+    el.textMeta.textContent = `${bytes.toLocaleString()} byte${bytes === 1 ? "" : "s"} · UTF-8`;
+
+    const expected = cleanHash(el.hash.value);
+    el.hashMeta.textContent = expected ? `${expected.length} hex chars` : "";
+
+    let hex;
+    try { hex = await digest(current, text); }
+    catch (err) {
+      if (id !== runId) return;
+      setState("error", "Unable to compute", err.message);
+      return;
+    }
+    if (id !== runId) return;   // a newer update superseded this one
+
+    lastComputed = hex;
+    el.computedLen.textContent = `${hex.length * 4}-bit`;
+    renderComputed(hex, expected);
+
+    el.hash.classList.remove("is-ok", "is-bad");
+    if (!expected) {
+      setState("idle", "Awaiting hash", "Add an expected hash to compare.");
+    } else if (!/^[0-9a-f]+$/.test(expected)) {
+      setState("error", "Invalid hash", "The expected hash should contain only hexadecimal characters (0–9, a–f).");
+      el.hash.classList.add("is-bad");
+    } else if (expected === hex) {
+      setState("match", "Hash matches", `The ${current.name} digest of the text is identical to the expected hash.`);
+      el.hash.classList.add("is-ok");
+    } else {
+      const lenHint = expected.length !== hex.length
+        ? ` Expected hash has ${expected.length} characters; ${current.name} produces ${hex.length}.`
+        : "";
+      setState("mismatch", "Hash does not match", `The ${current.name} digest differs from the expected hash.${lenHint}`);
+      el.hash.classList.add("is-bad");
+    }
+    syncUrl();
+  }
+
+  // ---------- URL handling ----------
+  function buildUrl() {
+    const p = new URLSearchParams();
+    if (el.text.value) p.set("text", el.text.value);
+    if (el.hash.value.trim()) p.set("hash", el.hash.value.trim());
+    if (algoExplicit || el.hash.value.trim() === "") { if (current.id !== "sha256" || algoExplicit) p.set("algo", current.id); }
+    if (el.trim.checked) p.set("trim", "1");
+    const qs = p.toString();
+    return location.origin + location.pathname + (qs ? "?" + qs : "");
+  }
+  function syncUrl() {
+    if (!el.syncUrl.checked) return;
+    try { history.replaceState(null, "", buildUrl()); } catch (_) {}
+  }
+
+  function loadFromUrl() {
+    const p = new URLSearchParams(location.search);
+    if (p.has("text")) el.text.value = p.get("text");
+    if (p.has("hash")) el.hash.value = p.get("hash");
+    el.trim.checked = ["1", "true", "yes"].includes((p.get("trim") || "").toLowerCase());
+    const a = byId[normalizeAlgo(p.get("algo") || p.get("algorithm"))];
+    if (a) { algoExplicit = true; setAlgo(a); } else setAlgo(byId.sha256);
+  }
+
+  // ---------- Helpers ----------
+  let toastTimer;
+  function toast(msg) {
+    el.toast.textContent = msg;
+    el.toast.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.toast.classList.remove("show"), 1600);
+  }
+  async function copy(text, msg) {
+    try { await navigator.clipboard.writeText(text); toast(msg); }
+    catch (_) {
+      const t = document.createElement("textarea"); t.value = text; document.body.appendChild(t); t.select();
+      try { document.execCommand("copy"); toast(msg); } catch (__) { toast("Copy failed"); }
+      t.remove();
+    }
+  }
+
+  // ---------- Events ----------
+  el.text.addEventListener("input", update);
+  el.hash.addEventListener("input", update);
+  el.trim.addEventListener("change", update);
+  el.syncUrl.addEventListener("change", () => {
+    if (el.syncUrl.checked) syncUrl();
+    else history.replaceState(null, "", location.pathname);
+  });
+  el.copyHash.addEventListener("click", () => lastComputed && copy(lastComputed, "Hash copied"));
+  el.copyLink.addEventListener("click", () => copy(buildUrl(), "Link copied"));
+  el.useComputed.addEventListener("click", () => { if (lastComputed) { el.hash.value = lastComputed; update(); } });
+  el.reset.addEventListener("click", () => {
+    el.text.value = ""; el.hash.value = ""; el.trim.checked = false;
+    algoExplicit = false; setAlgo(byId.sha256); update(); el.text.focus();
+  });
+
+  // Example link
+  const ex = location.origin + location.pathname +
+    "?text=hello&hash=2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824&algo=sha256";
+  el.example.innerHTML = "";
+  const a = document.createElement("a"); a.href = ex; a.textContent = ex; el.example.appendChild(a);
+
+  loadFromUrl();
+  update();
+})();
+</script>
+</body>
+</html>
